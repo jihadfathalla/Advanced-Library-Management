@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+
+  api:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      CELERY_BROKER_URL: redis://redis:6379/0 
+      CACHES_BACKEND: redis
+      CACHES_LOCATION: redis://redis:6379/1
+
+  db:
+    image: postgres:14
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - '8082:5432'
+    environment:
+      POSTGRES_DB: advanced_library_management_system
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+      POSTGRES_HOST: localhost
+    # env_file:
+    #   - .env
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    command: [ "redis-server", "--save", "60", "1", "--loglevel", "warning" ]
+    # environment:
+    #   CELERY_BROKER_URL: redis://redis:6379/0 # Ensure it matches settings.py
+    #   CACHES_BACKEND: redis
+    #   CACHES_LOCATION: redis://redis:6379/1
+
+  celery:
+    build: .
+    # command: ["celery", "-A" ,"app worker" ,"--loglevel=info"]
+    command: celery -A yourproject worker --loglevel=info
+
+    depends_on:
+      - redis
+      - api
+
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+
+  celery_beat:
+    build: .
+    # command: ["celery" ,"-A" ,"app beat", "--loglevel=info"]
+    command: celery -A yourproject beat --loglevel=info
+    depends_on:
+      - redis
+      - api
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+
+volumes:
+  postgres_data:
