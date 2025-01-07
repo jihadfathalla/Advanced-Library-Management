@@ -1,4 +1,5 @@
 import re
+import requests
 from rest_framework import serializers
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.tokens import default_token_generator
@@ -22,7 +23,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["username", "email", "password", "latitude", "longitude","role"]
+        fields = ["username", "email", "password", "latitude", "longitude", "role"]
 
     def validate_email(self, value):
         try:
@@ -31,7 +32,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(_("email cannot be empty"))
         return value
 
-    def validate_coordinates_with_precision(self,value):
+    def validate_coordinates_with_precision(self, value):
         lat_long_pattern = r"^-?\d{1,3}\.\d{1,6}$"
         if not re.match(lat_long_pattern, str(value)):
             return False
@@ -61,6 +62,17 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate(self, data):
+        request = self.context.get("request")
+        try:
+            data["latitude"]
+            data["longitude"]
+        except:
+            location_data = self.get_geolocation(request)
+            data["latitude"] = location_data["latitude"]
+            data["longitude"] = location_data["longitude"]
+        return data
+
     def create(self, validated_data):
         group = Group.objects.get(name=validated_data["role"])
         user = User.objects.create_user(
@@ -73,6 +85,32 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user.groups.add(group)
 
         return user
+
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(",")[0]
+        else:
+            ip = request.META.get("REMOTE_ADDR")
+        ip = "8.8.8.8"
+        return ip
+
+    def get_geolocation(self, request):
+        try:
+            ip = self.get_client_ip(request)
+            response = requests.get(f"http://ip-api.com/json/{ip}")
+            data = response.json()
+            if data["status"] == "success":
+                return {
+                    "latitude": data.get("lat"),
+                    "longitude": data.get("lon"),
+                    "city": data.get("city"),
+                    "country": data.get("country"),
+                }
+            else:
+                raise serializers.ValidationError(_("something want wrong"))
+        except Exception as e:
+            raise serializers.ValidationError(_("something want wrong"))
 
 
 class PasswordResetSerializer(serializers.Serializer):

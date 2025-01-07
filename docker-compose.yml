@@ -4,6 +4,7 @@ services:
 
   api:
     build: .
+    # command: gunicorn myproject.wsgi:application --bind 0.0.0.0:8000
     command: python manage.py runserver 0.0.0.0:8000
 
     ports:
@@ -18,7 +19,7 @@ services:
       - .env
     environment:
       DB_HOST: db
-      CELERY_BROKER_URL: redis://redis:6379/0 
+      CELERY_BROKER_URL: redis://redis:6379/0
       CACHES_BACKEND: redis
       CACHES_LOCATION: redis://redis:6379/1
 
@@ -49,7 +50,7 @@ services:
   celery:
     build: .
     # command: ["celery", "-A" ,"app worker" ,"--loglevel=info"]
-    command: celery -A yourproject worker --loglevel=info
+    command: celery -A config worker --loglevel=info
 
     depends_on:
       - redis
@@ -61,7 +62,7 @@ services:
   celery_beat:
     build: .
     # command: ["celery" ,"-A" ,"app beat", "--loglevel=info"]
-    command: celery -A yourproject beat --loglevel=info
+    command: celery -A config beat --loglevel=info
     depends_on:
       - redis
       - api
